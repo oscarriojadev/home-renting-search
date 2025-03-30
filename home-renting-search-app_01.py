@@ -15,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
 from bs4 import BeautifulSoup
 
-# ================== CONSTANTES =================
+# ================== CONSTANTES ==================
 TIMEOUT = 30
 MAX_RESULTADOS = 50
 
@@ -43,7 +43,7 @@ def configurar_entorno():
             os.system('Xvfb :99 -screen 0 1920x1080x24 &')
             os.environ['DISPLAY'] = ':99'
 
-@st.cache_resource
+# ================== SISTEMA DE DRIVER ==================
 def obtener_driver():
     try:
         configurar_entorno()
@@ -74,32 +74,7 @@ def obtener_driver():
         st.error(f"🚨 Error crítico: {str(e)}")
         st.stop()
 
-def mostrar_resultados(df):
-    st.subheader(f"📊 Resultados encontrados: {len(df)}")
-    
-    vista = st.radio("Modo de visualización:", ["Tarjetas", "Tabla"])
-    
-    if vista == "Tarjetas":
-        for _, propiedad in df.iterrows():
-            with st.expander(f"{propiedad['Título']} - {propiedad['Precio']}"):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"**Ubicación:** {propiedad['Ubicación']}")
-                    st.markdown(f"**Portal:** {propiedad['Portal']}")
-                    if 'Habitaciones' in propiedad:
-                        st.markdown(f"**Habitaciones:** {propiedad['Habitaciones']}")
-                    if 'Metros' in propiedad:
-                        st.markdown(f"**Metros cuadrados:** {propiedad['Metros']}")
-                with col2:
-                    st.markdown(f"[Ver propiedad]({propiedad['Enlace']})", unsafe_allow_html=True)
-    else:
-        st.dataframe(df.replace(np.nan, 'Sin dato'))
-    
-    csv = df.to_csv(index=False).encode('utf-8')
-    b64 = base64.b64encode(csv).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="propiedades.csv">⬇️ Descargar CSV</a>'
-    st.markdown(href, unsafe_allow_html=True)
-
+# ================== FUNCIONES DE SCRAPING ==================
 def construir_url(portal, filtros):
     base_urls = {
         'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
@@ -114,6 +89,7 @@ def extraer_idealista(driver, url):
         driver.get(url)
         WebDriverWait(driver, TIMEOUT).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
+        )
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
@@ -145,7 +121,8 @@ def extraer_fotocasa(driver, url):
     try:
         driver.get(url)
         WebDriverWait(driver, TIMEOUT).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div.re-Card")))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.re-Card"))
+        )
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
@@ -172,12 +149,43 @@ def extraer_fotocasa(driver, url):
         st.error(f"Error en Fotocasa: {str(e)}")
         return []
 
+# ================== VISUALIZACIÓN DE RESULTADOS ==================
+def mostrar_resultados(df):
+    st.subheader(f"📊 Resultados encontrados: {len(df)}")
+    
+    vista = st.radio("Modo de visualización:", ["Tarjetas", "Tabla"])
+    
+    if vista == "Tarjetas":
+        for _, propiedad in df.iterrows():
+            with st.expander(f"{propiedad['Título']} - {propiedad['Precio']}"):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"**Ubicación:** {propiedad['Ubicación']}")
+                    st.markdown(f"**Portal:** {propiedad['Portal']}")
+                    if 'Habitaciones' in propiedad:
+                        st.markdown(f"**Habitaciones:** {propiedad['Habitaciones']}")
+                    if 'Metros' in propiedad:
+                        st.markdown(f"**Metros cuadrados:** {propiedad['Metros']}")
+                with col2:
+                    st.markdown(f"[Ver propiedad]({propiedad['Enlace']})", unsafe_allow_html=True)
+    else:
+        st.dataframe(df.replace(np.nan, 'Sin dato'))
+    
+    csv = df.to_csv(index=False).encode('utf-8')
+    b64 = base64.b64encode(csv).decode()
+    href = f'<a href="data:file/csv;base64,{b64}" download="propiedades.csv">⬇️ Descargar CSV</a>'
+    st.markdown(href, unsafe_allow_html=True)
+
 # ================== FUNCIÓN PRINCIPAL ==================
 def main():
-    # Configuración inicial DEBE SER PRIMERO
+    # 1. Configuración inicial DEBE SER PRIMERO
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
-    _max_width_()  # Configuración de estilos
     
+    # 2. Aplicar caché al driver después de configurar la página
+    obtener_driver_cacheado = st.cache_resource(obtener_driver)
+    
+    # 3. Estilos y UI
+    _max_width_()
     st.title("🏡 Buscador Inteligente de Propiedades")
     
     with st.sidebar:
@@ -193,7 +201,7 @@ def main():
         )
     
     if st.button("🔍 Buscar propiedades"):
-        driver = obtener_driver()
+        driver = obtener_driver_cacheado()
         todas_propiedades = []
         
         try:
