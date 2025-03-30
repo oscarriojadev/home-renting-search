@@ -4,5 +4,3 @@ streamlit==1.33.0
 pandas==2.2.1
 beautifulsoup4==4.12.3
 protobuf==4.25.3
-pyvirtualdisplay==3.0
-setuptools==69.0.3
