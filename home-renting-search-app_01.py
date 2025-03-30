@@ -23,34 +23,26 @@ TIMEOUT = 15
 @st.cache_resource
 def obtener_driver():
     try:
-        options = webdriver.ChromeOptions()
+        options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920x1080")
         
         if platform.system() == 'Linux':
             options.binary_location = "/usr/bin/chromium-browser"
-            # Configuración específica para Linux
-            service = Service(
-                executable_path='/usr/bin/chromedriver',  # Ruta actualizada
-                service_args=['--verbose', '--log-path=/tmp/chromedriver.log']
-            )
-            options.add_argument("--single-process")
             options.add_argument("--disable-software-rasterizer")
             options.add_argument("--remote-debugging-port=9222")
-        else:
-            service = Service(ChromeDriverManager(version='115.0.5790.170').install())
-
-        driver = webdriver.Chrome(service=service, options=options)
+        
+        # Usa Selenium Manager integrado
+        driver = webdriver.Chrome(options=options)
         driver.set_page_load_timeout(30)
         return driver
         
     except Exception as e:
-        st.error(f"Error crítico al inicializar el driver: {str(e)}")
+        st.error(f"Error inicializando driver: {str(e)}")
         st.stop()
-
+        
 def construir_url(portal, filtros):
     base_urls = {
         'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
