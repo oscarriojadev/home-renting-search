@@ -52,7 +52,14 @@ def obtener_driver():
     except Exception as e:
         st.error(f"🚨 Error fatal: {str(e)}")
         st.stop()
-        
+
+def verificar_dependencias():
+    print("=== Versiones instaladas ===")
+    print(f"Chromium: {os.popen('chromium-browser --version').read()}")
+    print(f"ChromeDriver: {os.popen('chromedriver --version').read()}")
+    
+verificar_dependencias()
+
 def construir_url(portal, filtros):
     base_urls = {
         'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
