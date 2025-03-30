@@ -1,206 +1,168 @@
 import streamlit as st
-import time
 import pandas as pd
-import re
-from datetime import datetime
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+import time
 
-# Configuración de la página
-st.set_page_config(page_title="Buscador Avanzado de Alquileres", layout="wide")
-st.title("🏠 Buscador Multiplataforma de Alquileres")
+# Configuración global
+MAX_RESULTADOS = 50
+TIMEOUT = 15
 
-# --- Configuración de Selenium ---
 @st.cache_resource
-def get_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=chrome_options)
+def obtener_driver():
+    opciones = webdriver.ChromeOptions()
+    opciones.add_argument("--headless=new")
+    opciones.add_argument("--disable-gpu")
+    opciones.add_argument("--no-sandbox")
+    opciones.add_argument("--disable-dev-shm-usage")
+    return webdriver.Chrome(options=opciones)
 
-# URLs específicas
-PORTAL_URLS = {
-    'Idealista': 'https://www.idealista.com/areas/alquiler-viviendas/con-precio-hasta_1100,metros-cuadrados-mas-de_60,de-dos-dormitorios,de-tres-dormitorios,de-cuatro-cinco-habitaciones-o-mas/mapa-google?shape=((%7BpzuF%7ElsUaLeAg%40gQ%7BWhCia%40qNaW%7DS_%5C_U%7BLen%40ZgQj%7DCvI_FxjBcGdAuBhR))',
-    'Fotocasa': 'https://www.fotocasa.es/es/alquiler/viviendas/madrid-capital/todas-las-zonas/l?maxPrice=1100&minRooms=2&minSurface=60&searchArea=i-z07ghvjBwlYs0mHsxiGzrzWi8tE057Gs2mUgr_Gih8B5z3B415Bxj1CuuG2jRhmqJ9hM-tiBiyGz8-B5zRxgmHysqLp_zVu2mwB-1V-28Ejh8BknrCzhkK1l_GsqrD7s1Bz1xDl_5DjysDz18Ci2_BhiqC7qG&zoom=14',
-    'Spotahome': 'https://www.spotahome.com/es/s/madrid--spain/for-rent:apartments/for-rent:studios/bedrooms:1/bedrooms:2?move-in=2025-04-26&bed=double,single-group&budget=0-1100&rentalType[]=longTerm&moveInFrom=2025-04-26&moveInTo=2030-04-26&includeBlockedProperties=1&mapCenter=40.44767441477353,-3.7002290341000643',
-    'Yaencontre': 'https://www.yaencontre.com/alquiler/pisos/custom/f-2-habitaciones,-1100euros,50m2/mapa?polygon=utzuFvytU%7BLse%40r%40yRwZwBwZmEgs%40io%40iFoc%40lAa%5E%7EiC%60K_HllBvF%7Cq%40%7BK%60K'
-}
+def construir_url(portal, filtros):
+    base_urls = {
+        'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
+        'Fotocasa': f"https://www.fotocasa.es/es/alquiler/viviendas/{filtros['ubicacion']}/todas-las-zonas/l?maxPrice={filtros['max_precio']}&minRooms={filtros['min_habitaciones']}&minSurface={filtros['min_metros']}",
+        'Spotahome': f"https://www.spotahome.com/es/s/{filtros['ubicacion']}/for-rent:apartments/bedrooms:{filtros['min_habitaciones']}/budget=0-{filtros['max_precio']}",
+        'Yaencontre': f"https://www.yaencontre.com/alquiler/pisos/custom/f-{filtros['min_habitaciones']}-habitaciones,-{filtros['max_precio']}euros,{filtros['min_metros']}m2/mapa"
+    }
+    return base_urls.get(portal)
 
-# --- Funciones de scraping con Selenium ---
-def scrape_idealista():
+def extraer_idealista(driver, url):
     try:
-        driver = get_driver()
-        driver.get(PORTAL_URLS['Idealista'])
-        time.sleep(5)
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        propiedades = []
+        driver.get(url)
+        WebDriverWait(driver, TIMEOUT).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
         
-        for item in soup.find_all('article', class_='item-info-container'):
-            try:
-                detalles = {
-                    'Portal': 'Idealista',
-                    'Título': item.find('a', class_='item-link').get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='price').text)),
-                    'Habitaciones': item.find('span', class_='rooms').text.strip(),
-                    'Metros': item.find('span', class_='area').text.strip(),
-                    'Zona': item.find('span', class_='location').text.strip(),
-                    'Enlace': urljoin(PORTAL_URLS['Idealista'], item.find('a')['href']),
-                    'Fecha': datetime.now().strftime('%Y-%m-%d')
-                }
-                propiedades.append(detalles)
-            except Exception as e:
-                st.warning(f"Error procesando propiedad en Idealista: {str(e)}")
-        return propiedades
-    except Exception as e:
-        st.error(f"Error scraping Idealista: {str(e)}")
-        return []
-
-def scrape_fotocasa():
-    try:
-        driver = get_driver()
-        driver.get(PORTAL_URLS['Fotocasa'])
-        time.sleep(5)
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        propiedades = []
-        
-        for item in soup.find_all('div', class_='re-Card'):
-            try:
-                detalles = {
-                    'Portal': 'Fotocasa',
-                    'Título': item.find('a', class_='re-Card-title').get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='re-Card-price').text)),
-                    'Habitaciones': item.find_all('span', class_='detail-info')[0].text.strip(),
-                    'Metros': item.find_all('span', class_='detail-info')[1].text.strip(),
-                    'Zona': item.find('span', class_='location').text.strip(),
-                    'Enlace': urljoin(PORTAL_URLS['Fotocasa'], item.find('a')['href']),
-                    'Fecha': datetime.now().strftime('%Y-%m-%d')
-                }
-                propiedades.append(detalles)
-            except Exception as e:
-                st.warning(f"Error procesando propiedad en Fotocasa: {str(e)}")
-        return propiedades
-    except Exception as e:
-        st.error(f"Error scraping Fotocasa: {str(e)}")
-        return []
-
-def scrape_spotahome():
-    try:
-        driver = get_driver()
-        driver.get(PORTAL_URLS['Spotahome'])
-        time.sleep(8)  # Más tiempo para carga de React
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        propiedades = []
-        
-        for item in soup.find_all('div', class_='result-item'):
-            try:
-                detalles = {
-                    'Portal': 'Spotahome',
-                    'Título': item.find('span', class_='result-title').get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='result-price').text)),
-                    'Habitaciones': item.find('span', class_='rooms').text.strip() if item.find('span', class_='rooms') else 'No especificado',
-                    'Metros': item.find('span', class_='area').text.strip() if item.find('span', class_='area') else 'No especificado',
-                    'Zona': item.find('span', class_='result-location').text.strip(),
-                    'Enlace': urljoin(PORTAL_URLS['Spotahome'], item.find('a')['href']),
-                    'Fecha': datetime.now().strftime('%Y-%m-%d')
-                }
-                propiedades.append(detalles)
-            except Exception as e:
-                st.warning(f"Error procesando propiedad en Spotahome: {str(e)}")
-        return propiedades
-    except Exception as e:
-        st.error(f"Error scraping Spotahome: {str(e)}")
-        return []
-
-def scrape_yaencontre():
-    try:
-        driver = get_driver()
-        driver.get(PORTAL_URLS['Yaencontre'])
-        time.sleep(5)
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        propiedades = []
-        
-        for item in soup.find_all('div', class_='result-item'):
-            try:
-                detalles = {
-                    'Portal': 'Yaencontre',
-                    'Título': item.find('a', class_='property-title').get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='price').text)),
-                    'Habitaciones': item.find('span', class_='rooms').text.strip(),
-                    'Metros': item.find('span', class_='area').text.strip(),
-                    'Zona': item.find('span', class_='location').text.strip(),
-                    'Enlace': urljoin(PORTAL_URLS['Yaencontre'], item.find('a')['href']),
-                    'Fecha': datetime.now().strftime('%Y-%m-%d')
-                }
-                propiedades.append(detalles)
-            except Exception as e:
-                st.warning(f"Error procesando propiedad en Yaencontre: {str(e)}")
-        return propiedades
-    except Exception as e:
-        st.error(f"Error scraping Yaencontre: {str(e)}")
-        return []
-
-# --- Interfaz de usuario ---
-with st.sidebar:
-    st.header("⚙️ Configuración")
-    portales = st.multiselect(
-        "Seleccionar portales",
-        options=list(PORTAL_URLS.keys()),
-        default=list(PORTAL_URLS.keys())
-    
-    st.subheader("Filtros Avanzados")
-    min_precio, max_precio = st.slider('Rango de precios (€)', 0, 2000, (600, 1100))
-    min_metros = st.number_input('Mínimo de metros cuadrados', 40, 200, 60)
-
-if st.button("🔍 Iniciar Búsqueda"):
-    with st.spinner("Escaneando portales inmobiliarios..."):
         resultados = []
         
-        if 'Idealista' in portales:
-            resultados.extend(scrape_idealista())
-        if 'Fotocasa' in portales:
-            resultados.extend(scrape_fotocasa())
-        if 'Spotahome' in portales:
-            resultados.extend(scrape_spotahome())
-        if 'Yaencontre' in portales:
-            resultados.extend(scrape_yaencontre())
+        for propiedad in soup.select('article.item-info-container'):
+            titulo = propiedad.select_one('a.item-link')['title']
+            precio = propiedad.select_one('span.price').get_text(strip=True)
+            detalles = [span.get_text(strip=True) for span in propiedad.select('span.item-detail')]
+            ubicacion = propiedad.select_one('span.location').get_text(strip=True)
+            link = propiedad.select_one('a.item-link')['href']
+            
+            resultados.append({
+                'Título': titulo,
+                'Precio': precio,
+                'Habitaciones': detalles[0] if len(detalles) > 0 else 'N/A',
+                'Metros': detalles[1] if len(detalles) > 1 else 'N/A',
+                'Ubicación': ubicacion,
+                'Enlace': f"https://www.idealista.com{link}",
+                'Portal': 'Idealista'
+            })
         
-        if resultados:
-            df = pd.DataFrame(resultados)
-            df = df[
-                (df['Precio'].between(min_precio, max_precio)) &
-                (df['Metros'].apply(lambda x: int(re.sub(r'\D', '', str(x)) >= min_metros)
-            ]
-            
-            st.success(f"✅ {len(df)} propiedades encontradas")
-            
-            for _, row in df.iterrows():
-                with st.expander(f"{row['Portal']} - {row['Título']}"):
-                    st.markdown(f"""
-                    **Precio:** {row['Precio']}€  
-                    **Habitaciones:** {row['Habitaciones']}  
-                    **Metros:** {row['Metros']}  
-                    **Zona:** {row['Zona']}  
-                    **Enlace:** [{row['Portal']}]({row['Enlace']})
-                    """)
-            
-            st.download_button(
-                label="📥 Descargar CSV",
-                data=df.to_csv(index=False).encode('utf-8'),
-                file_name="resultados_alquileres.csv",
-                mime='text/csv'
-            )
-        else:
-            st.warning("No se encontraron propiedades con los filtros seleccionados")
+        return resultados[:MAX_RESULTADOS]
+    
+    except (TimeoutException, WebDriverException) as e:
+        st.error(f"Error en Idealista: {str(e)}")
+        return []
 
-# --- Requerimientos ---
-st.markdown("""
-### 📝 Requisitos técnicos:
-1. ChromeDriver instalado y en PATH
-2. Python 3.8+
-3. Dependencias:  
-```bash
-pip install streamlit selenium pandas beautifulsoup4
+def extraer_fotocasa(driver, url):
+    try:
+        driver.get(url)
+        WebDriverWait(driver, TIMEOUT).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.re-Card")))
+        
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        resultados = []
+        
+        for propiedad in soup.select('div.re-Card'):
+            titulo = propiedad.select_one('h3.re-Card-title').get_text(strip=True)
+            precio = propiedad.select_one('span.re-Card-price').get_text(strip=True)
+            detalles = propiedad.select_one('span.re-Card-feature").get_text(strip=True)
+            ubicacion = propiedad.select_one('span.re-Card-location").get_text(strip=True)
+            link = propiedad.select_one('a.re-Card-link')['href']
+            
+            resultados.append({
+                'Título': titulo,
+                'Precio': precio,
+                'Detalles': detalles,
+                'Ubicación': ubicacion,
+                'Enlace': f"https://www.fotocasa.es{link}",
+                'Portal': 'Fotocasa'
+            })
+        
+        return resultados[:MAX_RESULTADOS]
+    
+    except (TimeoutException, WebDriverException) as e:
+        st.error(f"Error en Fotocasa: {str(e)}")
+        return []
+
+def main():
+    st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
+    st.title("🏡 Buscador de Viviendas en Alquiler")
+    
+    # Filtros en sidebar
+    with st.sidebar:
+        st.header("⚙️ Filtros de Búsqueda")
+        ubicacion = st.text_input("Ubicación (ej: Madrid)", "madrid")
+        max_precio = st.slider("Precio máximo (€)", 500, 3000, 1100)
+        min_habitaciones = st.slider("Mínimo habitaciones", 1, 5, 2)
+        min_metros = st.slider("Mínimo metros cuadrados", 40, 200, 60)
+        portales = st.multiselect(
+            "Portales a buscar",
+            ['Idealista', 'Fotocasa', 'Spotahome', 'Yaencontre'],
+            default=['Idealista', 'Fotocasa']
+        )
+    
+    # Construir parámetros
+    filtros = {
+        'ubicacion': ubicacion.lower(),
+        'max_precio': max_precio,
+        'min_habitaciones': min_habitaciones,
+        'min_metros': min_metros
+    }
+    
+    if st.button("🔍 Buscar propiedades"):
+        driver = obtener_driver()
+        todas_propiedades = []
+        
+        with st.spinner("Buscando propiedades..."):
+            if 'Idealista' in portales:
+                url = construir_url('Idealista', filtros)
+                todas_propiedades += extraer_idealista(driver, url)
+            
+            if 'Fotocasa' in portales:
+                url = construir_url('Fotocasa', filtros)
+                todas_propiedades += extraer_fotocasa(driver, url)
+            
+            # Añadir demás portales aquí...
+        
+        if not todas_propiedades:
+            st.warning("No se encontraron resultados con los filtros actuales")
+            return
+        
+        df = pd.DataFrame(todas_propiedades)
+        
+        # Mostrar resultados
+        st.subheader(f"📊 Resultados encontrados: {len(df)}")
+        
+        for _, propiedad in df.iterrows():
+            with st.expander(f"{propiedad['Título']} - {propiedad['Precio']}"):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"**Ubicación:** {propiedad['Ubicación']}")
+                    st.markdown(f"**Portal:** {propiedad['Portal']}")
+                    if 'Habitaciones' in propiedad:
+                        st.markdown(f"**Habitaciones:** {propiedad['Habitaciones']}")
+                    if 'Metros' in propiedad:
+                        st.markdown(f"**Metros cuadrados:** {propiedad['Metros']}")
+                with col2:
+                    st.markdown(f"[Ver propiedad]({propiedad['Enlace']})", unsafe_allow_html=True)
+        
+        # Exportar a CSV
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Descargar resultados como CSV",
+            data=csv,
+            file_name='propiedades_alquiler.csv',
+            mime='text/csv'
+        )
+
+if __name__ == "__main__":
+    main()
