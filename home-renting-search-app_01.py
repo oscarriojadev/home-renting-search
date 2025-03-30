@@ -74,8 +74,9 @@ def extraer_fotocasa(driver, url):
         for propiedad in soup.select('div.re-Card'):
             titulo = propiedad.select_one('h3.re-Card-title').get_text(strip=True)
             precio = propiedad.select_one('span.re-Card-price').get_text(strip=True)
-            detalles = propiedad.select_one('span.re-Card-feature").get_text(strip=True)
-            ubicacion = propiedad.select_one('span.re-Card-location").get_text(strip=True)
+            # Corregir las comillas en estas 2 líneas
+            detalles = propiedad.select_one('span.re-Card-feature').get_text(strip=True)
+            ubicacion = propiedad.select_one('span.re-Card-location').get_text(strip=True)
             link = propiedad.select_one('a.re-Card-link')['href']
             
             resultados.append({
