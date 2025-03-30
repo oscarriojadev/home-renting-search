@@ -1,25 +1,28 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
 import time
-from datetime import datetime
+import pandas as pd
 import re
-from fake_useragent import UserAgent
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 # Configuración de la página
 st.set_page_config(page_title="Buscador Avanzado de Alquileres", layout="wide")
 st.title("🏠 Buscador Multiplataforma de Alquileres")
 
-# --- Configuración de scraping ---
-HEADERS = {
-    'User-Agent': UserAgent().random,
-    'Accept-Language': 'es-ES,es;q=0.9',
-    'Referer': 'https://www.google.com/'
-}
+# --- Configuración de Selenium ---
+@st.cache_resource
+def get_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    return webdriver.Chrome(options=chrome_options)
 
-# URLs específicas actualizadas
+# URLs específicas
 PORTAL_URLS = {
     'Idealista': 'https://www.idealista.com/areas/alquiler-viviendas/con-precio-hasta_1100,metros-cuadrados-mas-de_60,de-dos-dormitorios,de-tres-dormitorios,de-cuatro-cinco-habitaciones-o-mas/mapa-google?shape=((%7BpzuF%7ElsUaLeAg%40gQ%7BWhCia%40qNaW%7DS_%5C_U%7BLen%40ZgQj%7DCvI_FxjBcGdAuBhR))',
     'Fotocasa': 'https://www.fotocasa.es/es/alquiler/viviendas/madrid-capital/todas-las-zonas/l?maxPrice=1100&minRooms=2&minSurface=60&searchArea=i-z07ghvjBwlYs0mHsxiGzrzWi8tE057Gs2mUgr_Gih8B5z3B415Bxj1CuuG2jRhmqJ9hM-tiBiyGz8-B5zRxgmHysqLp_zVu2mwB-1V-28Ejh8BknrCzhkK1l_GsqrD7s1Bz1xDl_5DjysDz18Ci2_BhiqC7qG&zoom=14',
@@ -27,24 +30,25 @@ PORTAL_URLS = {
     'Yaencontre': 'https://www.yaencontre.com/alquiler/pisos/custom/f-2-habitaciones,-1100euros,50m2/mapa?polygon=utzuFvytU%7BLse%40r%40yRwZwBwZmEgs%40io%40iFoc%40lAa%5E%7EiC%60K_HllBvF%7Cq%40%7BK%60K'
 }
 
-# --- Funciones de scraping para todos los portales ---
+# --- Funciones de scraping con Selenium ---
 def scrape_idealista():
     try:
-        response = requests.get(PORTAL_URLS['Idealista'], headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        driver = get_driver()
+        driver.get(PORTAL_URLS['Idealista'])
+        time.sleep(5)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         propiedades = []
         
-        for item in soup.find_all('article', {'class': 'item'}):
+        for item in soup.find_all('article', class_='item-info-container'):
             try:
                 detalles = {
                     'Portal': 'Idealista',
-                    'Título': item.find('a', {'class': 'item-link'}).get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('span', {'class': 'item-price'}).text)),
-                    'Habitaciones': item.find_all('span', {'class': 'item-detail'})[0].text,
-                    'Metros': item.find_all('span', {'class': 'item-detail'})[1].text,
-                    'Zona': item.find('span', {'class': 'item-town'}).text if item.find('span', {'class': 'item-town'}) else None,
+                    'Título': item.find('a', class_='item-link').get_text(strip=True),
+                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='price').text)),
+                    'Habitaciones': item.find('span', class_='rooms').text.strip(),
+                    'Metros': item.find('span', class_='area').text.strip(),
+                    'Zona': item.find('span', class_='location').text.strip(),
                     'Enlace': urljoin(PORTAL_URLS['Idealista'], item.find('a')['href']),
-                    'Plantas': item.find('span', text=re.compile(r'\dª planta')).text if item.find('span', text=re.compile(r'\dª planta')) else None,
                     'Fecha': datetime.now().strftime('%Y-%m-%d')
                 }
                 propiedades.append(detalles)
@@ -57,21 +61,22 @@ def scrape_idealista():
 
 def scrape_fotocasa():
     try:
-        response = requests.get(PORTAL_URLS['Fotocasa'], headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        driver = get_driver()
+        driver.get(PORTAL_URLS['Fotocasa'])
+        time.sleep(5)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         propiedades = []
         
-        for item in soup.find_all('div', {'class': 're-CardPackPremium'}):
+        for item in soup.find_all('div', class_='re-Card'):
             try:
                 detalles = {
                     'Portal': 'Fotocasa',
-                    'Título': item.find('a', {'class': 're-Card-title'}).get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('span', {'class': 're-Card-price'}).text)),
-                    'Habitaciones': item.find_all('span', {'class': 're-Card-feature'})[0].text,
-                    'Metros': item.find_all('span', {'class': 're-Card-feature'})[1].text,
-                    'Zona': item.find('span', {'class': 're-Card-title'}).text.split(',')[-1].strip(),
+                    'Título': item.find('a', class_='re-Card-title').get_text(strip=True),
+                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='re-Card-price').text)),
+                    'Habitaciones': item.find_all('span', class_='detail-info')[0].text.strip(),
+                    'Metros': item.find_all('span', class_='detail-info')[1].text.strip(),
+                    'Zona': item.find('span', class_='location').text.strip(),
                     'Enlace': urljoin(PORTAL_URLS['Fotocasa'], item.find('a')['href']),
-                    'Características': [feat.text for feat in item.find_all('span', {'class': 're-Card-feature'})[2:]],
                     'Fecha': datetime.now().strftime('%Y-%m-%d')
                 }
                 propiedades.append(detalles)
@@ -84,28 +89,25 @@ def scrape_fotocasa():
 
 def scrape_spotahome():
     try:
-        response = requests.get(PORTAL_URLS['Spotahome'], headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        driver = get_driver()
+        driver.get(PORTAL_URLS['Spotahome'])
+        time.sleep(8)  # Más tiempo para carga de React
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         propiedades = []
         
-        for item in soup.find_all('article', {'class': 'PlaceCard'}):
+        for item in soup.find_all('div', class_='result-item'):
             try:
-                titulo = item.find('h3', {'class': 'PlaceCard-title'}).get_text(strip=True)
-                precio = int(re.sub(r'\D', '', item.find('span', {'class': 'PlaceCard-price'}).text))
-                detalles = item.find_all('li', {'class': 'PlaceCard-feature'})
-                
-                propiedad = {
+                detalles = {
                     'Portal': 'Spotahome',
-                    'Título': titulo,
-                    'Precio': precio,
-                    'Habitaciones': next((d.text for d in detalles if 'habitación' in d.text), 'No especificado'),
-                    'Metros': next((d.text for d in detalles if 'm²' in d.text), 'No especificado'),
-                    'Zona': item.find('span', {'class': 'PlaceCard-city'}).text if item.find('span', {'class': 'PlaceCard-city'}) else 'Madrid',
-                    'Enlace': urljoin(PORTAL_URLS['Spotahome'], item.find('a', {'class': 'PlaceCard-link'})['href']),
-                    'Disponibilidad': item.find('span', {'class': 'PlaceCard-availability'}).text if item.find('span', {'class': 'PlaceCard-availability'}) else 'Disponible',
+                    'Título': item.find('span', class_='result-title').get_text(strip=True),
+                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='result-price').text)),
+                    'Habitaciones': item.find('span', class_='rooms').text.strip() if item.find('span', class_='rooms') else 'No especificado',
+                    'Metros': item.find('span', class_='area').text.strip() if item.find('span', class_='area') else 'No especificado',
+                    'Zona': item.find('span', class_='result-location').text.strip(),
+                    'Enlace': urljoin(PORTAL_URLS['Spotahome'], item.find('a')['href']),
                     'Fecha': datetime.now().strftime('%Y-%m-%d')
                 }
-                propiedades.append(propiedad)
+                propiedades.append(detalles)
             except Exception as e:
                 st.warning(f"Error procesando propiedad en Spotahome: {str(e)}")
         return propiedades
@@ -115,19 +117,21 @@ def scrape_spotahome():
 
 def scrape_yaencontre():
     try:
-        response = requests.get(PORTAL_URLS['Yaencontre'], headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        driver = get_driver()
+        driver.get(PORTAL_URLS['Yaencontre'])
+        time.sleep(5)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         propiedades = []
         
-        for item in soup.find_all('div', {'class': 'property-info'}):
+        for item in soup.find_all('div', class_='result-item'):
             try:
                 detalles = {
                     'Portal': 'Yaencontre',
-                    'Título': item.find('a', {'class': 'property-title'}).get_text(strip=True),
-                    'Precio': int(re.sub(r'\D', '', item.find('div', {'class': 'price'}).text)),
-                    'Habitaciones': item.find('li', {'class': 'icon-bed'}).text.strip(),
-                    'Metros': item.find('li', {'class': 'icon-m2'}).text.strip(),
-                    'Zona': item.find('div', {'class': 'location'}).text.strip(),
+                    'Título': item.find('a', class_='property-title').get_text(strip=True),
+                    'Precio': int(re.sub(r'\D', '', item.find('span', class_='price').text)),
+                    'Habitaciones': item.find('span', class_='rooms').text.strip(),
+                    'Metros': item.find('span', class_='area').text.strip(),
+                    'Zona': item.find('span', class_='location').text.strip(),
                     'Enlace': urljoin(PORTAL_URLS['Yaencontre'], item.find('a')['href']),
                     'Fecha': datetime.now().strftime('%Y-%m-%d')
                 }
@@ -139,116 +143,64 @@ def scrape_yaencontre():
         st.error(f"Error scraping Yaencontre: {str(e)}")
         return []
 
-# --- Interfaz mejorada ---
+# --- Interfaz de usuario ---
 with st.sidebar:
-    st.header("⚙️ Configuración de Búsqueda")
+    st.header("⚙️ Configuración")
     portales = st.multiselect(
-        "Selecciona portales a consultar",
+        "Seleccionar portales",
         options=list(PORTAL_URLS.keys()),
         default=list(PORTAL_URLS.keys())
-    )
     
     st.subheader("Filtros Avanzados")
-    with st.expander("Características adicionales"):
-        min_metros = st.slider("Metros cuadrados mínimos", 40, 150, 60)
-        max_precio = st.slider("Precio máximo (€)", 500, 1500, 1100)
-        tipos_propiedad = st.multiselect(
-            "Tipo de propiedad",
-            options=['Apartamento', 'Piso', 'Estudio', 'Casa'],
-            default=['Apartamento', 'Piso']
-        )
-        parking = st.checkbox("Con parking")
-        amueblado = st.checkbox("Amueblado")
+    min_precio, max_precio = st.slider('Rango de precios (€)', 0, 2000, (600, 1100))
+    min_metros = st.number_input('Mínimo de metros cuadrados', 40, 200, 60)
 
-# --- Visualización de resultados ---
 if st.button("🔍 Iniciar Búsqueda"):
-    with st.spinner("Buscando en los portales seleccionados..."):
+    with st.spinner("Escaneando portales inmobiliarios..."):
         resultados = []
         
         if 'Idealista' in portales:
             resultados.extend(scrape_idealista())
-            time.sleep(2)
         if 'Fotocasa' in portales:
             resultados.extend(scrape_fotocasa())
-            time.sleep(2)
         if 'Spotahome' in portales:
             resultados.extend(scrape_spotahome())
-            time.sleep(2)
         if 'Yaencontre' in portales:
             resultados.extend(scrape_yaencontre())
         
         if resultados:
             df = pd.DataFrame(resultados)
-            
-            # Aplicar filtros dinámicos
             df = df[
-                (df['Precio'] <= max_precio) &
-                (df['Metros'].apply(lambda x: int(re.sub(r'\D', '', str(x)) if str(x).isdigit() else 0) >= min_metros)) &
-                (df['Título'].apply(lambda x: any(tipo in x for tipo in tipos_propiedad)))
+                (df['Precio'].between(min_precio, max_precio)) &
+                (df['Metros'].apply(lambda x: int(re.sub(r'\D', '', str(x)) >= min_metros)
             ]
             
-            if parking:
-                df = df[df.apply(lambda x: 'parking' in str(x.get('Características', '')).lower() or 
-                                'parking' in x['Título'].lower(), axis=1)]
-            
-            if amueblado:
-                df = df[df.apply(lambda x: 'amueblado' in str(x.get('Características', '')).lower() or 
-                                'amueblado' in x['Título'].lower(), axis=1)]
-
-            # Mostrar resultados mejorados
             st.success(f"✅ {len(df)} propiedades encontradas")
             
             for _, row in df.iterrows():
-                with st.expander(f"{row['Portal']} - {row['Título']}", expanded=True):
-                    col1, col2 = st.columns([1, 3])
-                    with col1:
-                        st.image("https://via.placeholder.com/250x150.png?text=Imagen+Propiedad", width=250)
-                    with col2:
-                        info = f"""
-                        **💰 Precio:** {row['Precio']}€  
-                        **🚪 Habitaciones:** {row['Habitaciones']}  
-                        **📏 Metros:** {row['Metros']}  
-                        **📍 Zona:** {row['Zona']}  
-                        **🌐 Enlace:** [{row['Portal']}]({row['Enlace']})
-                        """
-                        
-                        if row['Portal'] == 'Spotahome':
-                            info += f"\n**📅 Disponibilidad:** {row.get('Disponibilidad', 'N/A')}"
-                        if row.get('Características'):
-                            info += f"\n**✨ Características:** {', '.join(row['Características'])}"
-                        
-                        st.markdown(info)
+                with st.expander(f"{row['Portal']} - {row['Título']}"):
+                    st.markdown(f"""
+                    **Precio:** {row['Precio']}€  
+                    **Habitaciones:** {row['Habitaciones']}  
+                    **Metros:** {row['Metros']}  
+                    **Zona:** {row['Zona']}  
+                    **Enlace:** [{row['Portal']}]({row['Enlace']})
+                    """)
             
-            # Opciones de exportación
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    label="📥 Descargar CSV",
-                    data=df.to_csv(index=False).encode('utf-8'),
-                    file_name=f"alquileres_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime='text/csv'
-                )
-            with col2:
-                st.download_button(
-                    label="📊 Descargar Excel",
-                    data=df.to_excel(index=False),
-                    file_name=f"alquileres_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                    mime='application/vnd.ms-excel'
-                )
+            st.download_button(
+                label="📥 Descargar CSV",
+                data=df.to_csv(index=False).encode('utf-8'),
+                file_name="resultados_alquileres.csv",
+                mime='text/csv'
+            )
         else:
-            st.warning("No se encontraron propiedades con los criterios seleccionados")
+            st.warning("No se encontraron propiedades con los filtros seleccionados")
 
-# --- Notas técnicas ---
+# --- Requerimientos ---
 st.markdown("""
-### 📝 Características principales:
-1. **Cobertura completa** de 4 portales principales
-2. **Filtros inteligentes** en tiempo real
-3. **Datos enriquecidos** con disponibilidad y características
-4. **Resultados verificados** en Spotahome
-5. **Búsqueda específica** para Madrid centro
-
-### ⚠️ Limitaciones conocidas:
-- Los selectores HTML pueden cambiar sin previo aviso
-- Algunos filtros varían entre portales
-- Los precios no incluyen gastos adicionales en algunos casos
-""")
+### 📝 Requisitos técnicos:
+1. ChromeDriver instalado y en PATH
+2. Python 3.8+
+3. Dependencias:  
+```bash
+pip install streamlit selenium pandas beautifulsoup4
