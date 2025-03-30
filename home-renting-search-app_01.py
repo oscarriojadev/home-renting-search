@@ -58,9 +58,10 @@ def construir_url(portal, filtros):
 def extraer_idealista(driver, url):
     try:
         driver.get(url)
-        time.sleep(2)  # Espera adicional para carga dinámica
+        time.sleep(2)
         WebDriverWait(driver, TIMEOUT).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))  # Aquí faltaba cerrar el paréntesis
+        )
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
