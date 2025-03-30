@@ -5,6 +5,7 @@ import time
 import base64
 import streamlit as st
 import pandas as pd
+import numpy as np  # Añadido import faltante
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -13,6 +14,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
 from bs4 import BeautifulSoup
+
+# ================== CONSTANTES ==================
+TIMEOUT = 30
+MAX_RESULTADOS = 50
 
 # ================== MEJORAS DE UI ==================
 def _max_width_():
@@ -42,7 +47,7 @@ def configurar_entorno():
             os.system('Xvfb :99 -screen 0 1920x1080x24 &')
             os.environ['DISPLAY'] = ':99'
 
-# ================== NUEVO SISTEMA DE MANEJO DE DRIVER ==================
+# ================== SISTEMA DE DRIVER MEJORADO ==================
 @st.cache_resource
 def obtener_driver():
     try:
@@ -74,11 +79,10 @@ def obtener_driver():
         st.error(f"🚨 Error crítico: {str(e)}")
         st.stop()
 
-# ================== FUNCIONALIDAD MEJORADA ==================
+# ================== VISUALIZACIÓN DE RESULTADOS MEJORADA ==================
 def mostrar_resultados(df):
     st.subheader(f"📊 Resultados encontrados: {len(df)}")
     
-    # Nueva opción de visualización tabular
     vista = st.radio("Modo de visualización:", ["Tarjetas", "Tabla"])
     
     if vista == "Tarjetas":
@@ -97,14 +101,12 @@ def mostrar_resultados(df):
     else:
         st.dataframe(df.replace(np.nan, 'Sin dato'))
     
-    # Mejor sistema de descarga
     csv = df.to_csv(index=False).encode('utf-8')
     b64 = base64.b64encode(csv).decode()
     href = f'<a href="data:file/csv;base64,{b64}" download="propiedades.csv">⬇️ Descargar CSV</a>'
     st.markdown(href, unsafe_allow_html=True)
 
-# ================== FUNCIONES RESTANTES ACTUALIZADAS ==================
-
+# ================== FUNCIONES DE SCRAPING ACTUALIZADAS ==================
 def construir_url(portal, filtros):
     base_urls = {
         'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
@@ -117,10 +119,8 @@ def construir_url(portal, filtros):
 def extraer_idealista(driver, url):
     try:
         driver.get(url)
-        time.sleep(2)
         WebDriverWait(driver, TIMEOUT).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))  # Aquí faltaba cerrar el paréntesis
-        )
+            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
@@ -151,7 +151,6 @@ def extraer_idealista(driver, url):
 def extraer_fotocasa(driver, url):
     try:
         driver.get(url)
-        time.sleep(2)  # Espera adicional para carga dinámica
         WebDriverWait(driver, TIMEOUT).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div.re-Card")))
         
@@ -180,6 +179,7 @@ def extraer_fotocasa(driver, url):
         st.error(f"Error en Fotocasa: {str(e)}")
         return []
 
+# ================== FUNCIÓN PRINCIPAL MEJORADA ==================
 def main():
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
     st.title("🏡 Buscador Inteligente de Propiedades")
@@ -202,8 +202,24 @@ def main():
         
         try:
             with st.spinner("🔎 Analizando portales..."):
-                # (Mantener lógica de scraping con mejor manejo de errores)
-                pass
+                filtros = {
+                    'ubicacion': ubicacion,
+                    'max_precio': max_precio,
+                    'min_habitaciones': min_habitaciones,
+                    'min_metros': min_metros
+                }
+                
+                for portal in portales:
+                    url = construir_url(portal, filtros)
+                    if url:
+                        if portal == 'Idealista':
+                            resultados = extraer_idealista(driver, url)
+                        elif portal == 'Fotocasa':
+                            resultados = extraer_fotocasa(driver, url)
+                        # Añadir otros portales aquí
+                        
+                        todas_propiedades.extend(resultados)
+                        time.sleep(2)  # Espera entre peticiones
                 
             if not todas_propiedades:
                 st.warning("⚠️ No se encontraron resultados")
