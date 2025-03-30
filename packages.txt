@@ -15,5 +15,4 @@ libxrandr2
 libxrender1
 libxss1
 libxtst6
-fonts-noto
 fonts-freefont-ttf
