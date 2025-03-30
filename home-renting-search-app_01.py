@@ -121,6 +121,7 @@ def extraer_idealista(driver, url):
         driver.get(url)
         WebDriverWait(driver, TIMEOUT).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
+        )
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
