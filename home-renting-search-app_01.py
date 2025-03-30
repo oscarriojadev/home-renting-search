@@ -1,29 +1,31 @@
-import streamlit as st
-import pandas as pd
+import os
 import platform
 import sys
 import time
-import os
+import streamlit as st
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import WebDriverException, TimeoutException
 from bs4 import BeautifulSoup
 
-# Configurar rutas críticas para Linux
+# ================== CONFIGURACIÓN CRÍTICA ==================
 if platform.system() == 'Linux':
-    os.environ['CHROME_PATH'] = '/usr/bin/chromium-browser'
+    # Configurar rutas esenciales
+    os.environ['CHROME_BIN'] = '/usr/bin/chromium-browser'
     os.environ['CHROMEDRIVER_PATH'] = '/usr/bin/chromedriver'
     sys.path.append('/usr/lib/chromium-browser')
     sys.path.append('/usr/bin')
 
-# Configuración global
-MAX_RESULTADOS = 50
-TIMEOUT = 20  # Aumentado para conexiones lentas
+    # Forzar configuración de display virtual
+    os.system('Xvfb :99 -screen 0 1920x1080x24 &')
+    os.environ['DISPLAY'] = ':99'
 
+# ================== CONFIGURACIÓN DEL DRIVER ==================
 @st.cache_resource
 def obtener_driver():
     try:
@@ -33,28 +35,22 @@ def obtener_driver():
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920x1080")
-        options.add_argument("--disable-blink-features=AutomationControlled")
         
         if platform.system() == 'Linux':
-            options.binary_location = os.environ['CHROME_PATH']
             service = Service(
                 executable_path=os.environ['CHROMEDRIVER_PATH'],
-                service_args=[
-                    '--verbose',
-                    '--log-path=/tmp/chromedriver.log'
-                ]
+                service_args=['--verbose', '--log-path=/tmp/chromedriver.log']
             )
-            options.add_argument("--disable-software-rasterizer")
-            options.add_argument("--remote-debugging-port=9222")
+            options.binary_location = os.environ['CHROME_BIN']
         else:
             service = Service()
             
         driver = webdriver.Chrome(service=service, options=options)
-        driver.set_page_load_timeout(40)  # Aumentado a 40 segundos
+        driver.set_page_load_timeout(45)
         return driver
         
     except Exception as e:
-        st.error(f"🚨 Error crítico inicializando driver: {str(e)}")
+        st.error(f"🚨 Error fatal: {str(e)}")
         st.stop()
         
 def construir_url(portal, filtros):
