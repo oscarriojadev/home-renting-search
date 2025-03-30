@@ -182,7 +182,10 @@ def extraer_fotocasa(driver, url):
 
 # ================== FUNCIÓN PRINCIPAL MEJORADA ==================
 def main():
+    # Configuración inicial DEBE SER PRIMERO
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
+    _max_width_()  # Llamada a configuración de ancho después de set_page_config
+    
     st.title("🏡 Buscador Inteligente de Propiedades")
     
     with st.sidebar:
@@ -217,10 +220,11 @@ def main():
                             resultados = extraer_idealista(driver, url)
                         elif portal == 'Fotocasa':
                             resultados = extraer_fotocasa(driver, url)
-                        # Añadir otros portales aquí
+                        # Añadir lógica para otros portales aquí
                         
-                        todas_propiedades.extend(resultados)
-                        time.sleep(2)  # Espera entre peticiones
+                        if resultados:
+                            todas_propiedades.extend(resultados)
+                            time.sleep(1.5)  # Espera anti-detection
                 
             if not todas_propiedades:
                 st.warning("⚠️ No se encontraron resultados")
@@ -228,8 +232,11 @@ def main():
                 df = pd.DataFrame(todas_propiedades)
                 mostrar_resultados(df)
                 
+        except Exception as e:
+            st.error(f"Error general: {str(e)}")
         finally:
-            driver.quit()
+            if driver:
+                driver.quit()
 
 if __name__ == "__main__":
     main()
