@@ -23,19 +23,26 @@ TIMEOUT = 15
 @st.cache_resource
 def obtener_driver():
     try:
-        options = Options()
+        options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920x1080")
+        options.add_argument("--disable-features=VizDisplayCompositor")
+        options.add_argument("--disable-software-rasterizer")
         
         if platform.system() == 'Linux':
             options.binary_location = "/usr/bin/chromium-browser"
-            options.add_argument("--disable-software-rasterizer")
-            options.add_argument("--remote-debugging-port=9222")
-        
-        # Usa Selenium Manager integrado
-        driver = webdriver.Chrome(options=options)
+            # Forzar versión específica de ChromeDriver
+            service = Service(
+                executable_path='/usr/bin/chromedriver',
+                service_args=['--verbose', '--log-path=/tmp/chromedriver.log']
+            )
+        else:
+            service = Service()
+            
+        driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(30)
         return driver
         
