@@ -1,12 +1,20 @@
 import streamlit as st
 import pandas as pd
+import platform
+import sys
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
 import time
+
+# Configuración para Linux en entornos cloud
+if platform.system() == 'Linux':
+    sys.path.append('/usr/lib/chromium-browser/chromedriver')
 
 # Configuración global
 MAX_RESULTADOS = 50
@@ -15,11 +23,34 @@ TIMEOUT = 15
 @st.cache_resource
 def obtener_driver():
     opciones = webdriver.ChromeOptions()
+    
+    # Configuración básica headless
     opciones.add_argument("--headless=new")
     opciones.add_argument("--disable-gpu")
     opciones.add_argument("--no-sandbox")
     opciones.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=opciones)
+    
+    # Configuración avanzada para estabilidad
+    opciones.add_argument("--disable-setuid-sandbox")
+    opciones.add_argument("--remote-debugging-port=9222")
+    opciones.add_argument("--disable-extensions")
+    opciones.add_argument("--disable-features=NetworkService")
+    opciones.add_argument("--window-size=1920,1080")
+    opciones.add_argument("--single-process")
+    
+    # Configuración específica para Linux
+    if platform.system() == 'Linux':
+        opciones.binary_location = "/usr/bin/chromium-browser"
+        opciones.add_argument("--disable-software-rasterizer")
+        opciones.add_argument("--disable-features=VizDisplayCompositor")
+    
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=opciones)
+        return driver
+    except Exception as e:
+        st.error(f"Error al inicializar el driver: {str(e)}")
+        raise
 
 def construir_url(portal, filtros):
     base_urls = {
