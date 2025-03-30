@@ -69,9 +69,8 @@ def obtener_driver():
         driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(45)
         return driver
-        
     except Exception as e:
-        raise RuntimeError(f"Error inicializando driver: {str(e)}") 
+        raise RuntimeError(f"Error inicializando Chrome: {str(e)}")
 
 # ================== FUNCIONES DE SCRAPING ==================
 def construir_url(portal, filtros):
@@ -177,11 +176,11 @@ def mostrar_resultados(df):
 
 # ================== FUNCIÓN PRINCIPAL ==================
 def main():
-    # 1. CONFIGURACIÓN DE PÁGINA (PRIMERA Y ÚNICA INSTRUCCIÓN INICIAL)
+    # 1. CONFIGURACIÓN DE PÁGINA - DEBE SER LA PRIMERA LÍNEA
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
     
     try:
-        # 2. Configuración del driver con caché (versión corregida)
+        # 2. Configurar driver con caché (sin decoradores)
         obtener_driver_cacheado = st.cache_resource(obtener_driver)
         
         # 3. Interfaz de usuario
@@ -238,7 +237,7 @@ def main():
                     driver.quit()
     
     except Exception as e:
-        st.error(f"🚨 Error crítico de inicialización: {str(e)}")
+        st.error(f"🚨 Error crítico: {str(e)}")
         st.stop()
 
 if __name__ == "__main__":
