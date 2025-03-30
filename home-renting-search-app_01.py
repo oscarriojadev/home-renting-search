@@ -34,7 +34,8 @@ def extraer_idealista(driver, url):
     try:
         driver.get(url)
         WebDriverWait(driver, TIMEOUT).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))  # Faltaba cerrar paréntesis
+        )
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
