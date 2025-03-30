@@ -106,7 +106,7 @@ def mostrar_resultados(df):
     href = f'<a href="data:file/csv;base64,{b64}" download="propiedades.csv">⬇️ Descargar CSV</a>'
     st.markdown(href, unsafe_allow_html=True)
 
-# ================== FUNCIONES DE SCRAPING ACTUALIZADAS ==================
+# ================== FUNCIONES DE SCRAPING ACTUALIZADAS =================
 def construir_url(portal, filtros):
     base_urls = {
         'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
