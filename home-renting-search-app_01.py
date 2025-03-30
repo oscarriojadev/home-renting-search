@@ -1,4 +1,6 @@
 import streamlit as st
+import resource
+resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))  # Limita a 1GB
 import pandas as pd
 import platform
 import sys
@@ -22,34 +24,32 @@ TIMEOUT = 15
 
 @st.cache_resource
 def obtener_driver():
-    opciones = webdriver.ChromeOptions()
-    
-    # Configuración básica headless
-    opciones.add_argument("--headless=new")
-    opciones.add_argument("--disable-gpu")
-    opciones.add_argument("--no-sandbox")
-    opciones.add_argument("--disable-dev-shm-usage")
-    
-    # Configuración avanzada para estabilidad
-    opciones.add_argument("--disable-setuid-sandbox")
-    opciones.add_argument("--remote-debugging-port=9222")
-    opciones.add_argument("--disable-extensions")
-    opciones.add_argument("--disable-features=NetworkService")
-    opciones.add_argument("--window-size=1920,1080")
-    opciones.add_argument("--single-process")
-    
-    # Configuración específica para Linux
-    if platform.system() == 'Linux':
-        opciones.binary_location = "/usr/bin/chromium-browser"
-        opciones.add_argument("--disable-software-rasterizer")
-        opciones.add_argument("--disable-features=VizDisplayCompositor")
-    
     try:
+        # Configuración de opciones
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-features=NetworkService")
+        options.add_argument("--window-size=1920x1080")
+        
+        # Configuración específica para Linux
+        if platform.system() == 'Linux':
+            options.binary_location = "/usr/bin/chromium-browser"
+            options.add_argument("--single-process")
+            options.add_argument("--disable-software-rasterizer")
+        
+        # Instalación y configuración del servicio
         service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=opciones)
+        
+        # Inicialización del driver
+        driver = webdriver.Chrome(service=service, options=options)
         return driver
+        
     except Exception as e:
-        st.error(f"Error al inicializar el driver: {str(e)}")
+        st.error(f"Error crítico al inicializar el driver: {str(e)}")
+        st.stop()  # Detiene la ejecución de la app
         raise
 
 def construir_url(portal, filtros):
