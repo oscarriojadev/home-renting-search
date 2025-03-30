@@ -32,19 +32,25 @@ def obtener_driver():
         
         if platform.system() == 'Linux':
             options.binary_location = "/usr/bin/chromium-browser"
+            # Configuración específica para Linux
+            service = Service(
+                executable_path='/usr/lib/chromium-browser/chromedriver',
+                service_args=['--verbose', '--log-path=/tmp/chromedriver.log']
+            )
             options.add_argument("--single-process")
             options.add_argument("--disable-software-rasterizer")
             options.add_argument("--remote-debugging-port=9222")
+        else:
+            # Configuración para desarrollo local
+            service = Service(ChromeDriverManager(version='114.0.5735.90').install())
 
-        service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(30)
         return driver
         
     except Exception as e:
-        st.error(f"Error inicializando driver: {str(e)}")
+        st.error(f"Error crítico al inicializar el driver: {str(e)}")
         st.stop()
-        raise
 
 def construir_url(portal, filtros):
     base_urls = {
