@@ -35,15 +35,14 @@ def obtener_driver():
             options.binary_location = "/usr/bin/chromium-browser"
             # Configuración específica para Linux
             service = Service(
-                executable_path='/usr/lib/chromium-browser/chromedriver',
+                executable_path='/usr/bin/chromedriver',  # Ruta actualizada
                 service_args=['--verbose', '--log-path=/tmp/chromedriver.log']
             )
             options.add_argument("--single-process")
             options.add_argument("--disable-software-rasterizer")
             options.add_argument("--remote-debugging-port=9222")
         else:
-            # Configuración para desarrollo local
-            service = Service(ChromeDriverManager(version='114.0.5735.90').install())
+            service = Service(ChromeDriverManager(version='115.0.5790.170').install())
 
         driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(30)
