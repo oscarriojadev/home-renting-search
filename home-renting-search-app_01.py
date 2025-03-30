@@ -15,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
 from bs4 import BeautifulSoup
 
-# ================== CONSTANTES ================
+# ================== CONSTANTES ==============
 TIMEOUT = 30
 MAX_RESULTADOS = 50
 
