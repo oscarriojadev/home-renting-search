@@ -1,5 +1,5 @@
-selenium==4.19.0
-webdriver-manager==4.0.1
+selenium==4.30.0
+webdriver-manager==4.0.2
 streamlit==1.33.0
 pandas==2.2.1
 beautifulsoup4==4.12.3
