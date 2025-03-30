@@ -5,7 +5,7 @@ import time
 import base64
 import streamlit as st
 import pandas as pd
-import numpy as np  # Añadido import faltante
+import numpy as np  
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
