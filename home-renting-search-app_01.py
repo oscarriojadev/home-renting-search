@@ -177,14 +177,12 @@ def mostrar_resultados(df):
 
 # ================== FUNCIÓN PRINCIPAL ==================
 def main():
-    # 1. CONFIGURACIÓN DE PÁGINA (DEBE SER ABSOLUTAMENTE PRIMERO)
+    # 1. CONFIGURACIÓN DE PÁGINA (PRIMERA Y ÚNICA INSTRUCCIÓN INICIAL)
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
     
     try:
-        # 2. Configurar driver con caché
-        @st.cache_resource
-        def obtener_driver_cacheado():
-            return obtener_driver()
+        # 2. Configuración del driver con caché (versión corregida)
+        obtener_driver_cacheado = st.cache_resource(obtener_driver)
         
         # 3. Interfaz de usuario
         _max_width_()
