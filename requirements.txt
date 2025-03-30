@@ -1,8 +1,5 @@
 selenium==4.19.0
-webdriver-manager==4.0.1
 streamlit==1.33.0
 pandas==2.2.1
 beautifulsoup4==4.12.3
-protobuf==3.20.3  # Versión compatible con Selenium 4.19
-html5lib==1.1
-lxml==5.2.1
+protobuf==4.25.3
