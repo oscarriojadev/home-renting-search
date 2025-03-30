@@ -1,9 +1,8 @@
 import streamlit as st
-import resource
-resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))  # Limita a 1GB
 import pandas as pd
 import platform
 import sys
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -12,7 +11,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
-import time
 
 # Configuración para Linux en entornos cloud
 if platform.system() == 'Linux':
@@ -25,31 +23,27 @@ TIMEOUT = 15
 @st.cache_resource
 def obtener_driver():
     try:
-        # Configuración de opciones
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
-        options.add_argument("--disable-features=NetworkService")
         options.add_argument("--window-size=1920x1080")
         
-        # Configuración específica para Linux
         if platform.system() == 'Linux':
             options.binary_location = "/usr/bin/chromium-browser"
             options.add_argument("--single-process")
             options.add_argument("--disable-software-rasterizer")
-        
-        # Instalación y configuración del servicio
+            options.add_argument("--remote-debugging-port=9222")
+
         service = Service(ChromeDriverManager().install())
-        
-        # Inicialización del driver
         driver = webdriver.Chrome(service=service, options=options)
+        driver.set_page_load_timeout(30)
         return driver
         
     except Exception as e:
-        st.error(f"Error crítico al inicializar el driver: {str(e)}")
-        st.stop()  # Detiene la ejecución de la app
+        st.error(f"Error inicializando driver: {str(e)}")
+        st.stop()
         raise
 
 def construir_url(portal, filtros):
@@ -64,9 +58,9 @@ def construir_url(portal, filtros):
 def extraer_idealista(driver, url):
     try:
         driver.get(url)
+        time.sleep(2)  # Espera adicional para carga dinámica
         WebDriverWait(driver, TIMEOUT).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))  # Faltaba cerrar paréntesis
-        )
+            EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
@@ -97,6 +91,7 @@ def extraer_idealista(driver, url):
 def extraer_fotocasa(driver, url):
     try:
         driver.get(url)
+        time.sleep(2)  # Espera adicional para carga dinámica
         WebDriverWait(driver, TIMEOUT).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div.re-Card")))
         
@@ -106,7 +101,6 @@ def extraer_fotocasa(driver, url):
         for propiedad in soup.select('div.re-Card'):
             titulo = propiedad.select_one('h3.re-Card-title').get_text(strip=True)
             precio = propiedad.select_one('span.re-Card-price').get_text(strip=True)
-            # Corregir las comillas en estas 2 líneas
             detalles = propiedad.select_one('span.re-Card-feature').get_text(strip=True)
             ubicacion = propiedad.select_one('span.re-Card-location').get_text(strip=True)
             link = propiedad.select_one('a.re-Card-link')['href']
@@ -130,7 +124,6 @@ def main():
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
     st.title("🏡 Buscador de Viviendas en Alquiler")
     
-    # Filtros en sidebar
     with st.sidebar:
         st.header("⚙️ Filtros de Búsqueda")
         ubicacion = st.text_input("Ubicación (ej: Madrid)", "madrid")
@@ -143,7 +136,6 @@ def main():
             default=['Idealista', 'Fotocasa']
         )
     
-    # Construir parámetros
     filtros = {
         'ubicacion': ubicacion.lower(),
         'max_precio': max_precio,
@@ -157,14 +149,20 @@ def main():
         
         with st.spinner("Buscando propiedades..."):
             if 'Idealista' in portales:
-                url = construir_url('Idealista', filtros)
-                todas_propiedades += extraer_idealista(driver, url)
+                try:
+                    url = construir_url('Idealista', filtros)
+                    todas_propiedades += extraer_idealista(driver, url)
+                except Exception as e:
+                    st.error(f"Error con Idealista: {str(e)}")
             
             if 'Fotocasa' in portales:
-                url = construir_url('Fotocasa', filtros)
-                todas_propiedades += extraer_fotocasa(driver, url)
-            
-            # Añadir demás portales aquí...
+                try:
+                    url = construir_url('Fotocasa', filtros)
+                    todas_propiedades += extraer_fotocasa(driver, url)
+                except Exception as e:
+                    st.error(f"Error con Fotocasa: {str(e)}")
+        
+        driver.quit()
         
         if not todas_propiedades:
             st.warning("No se encontraron resultados con los filtros actuales")
@@ -172,7 +170,6 @@ def main():
         
         df = pd.DataFrame(todas_propiedades)
         
-        # Mostrar resultados
         st.subheader(f"📊 Resultados encontrados: {len(df)}")
         
         for _, propiedad in df.iterrows():
@@ -188,7 +185,6 @@ def main():
                 with col2:
                     st.markdown(f"[Ver propiedad]({propiedad['Enlace']})", unsafe_allow_html=True)
         
-        # Exportar a CSV
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Descargar resultados como CSV",
