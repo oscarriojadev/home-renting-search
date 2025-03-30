@@ -1,0 +1,6 @@
+chromium
+chromium-chromedriver
+libgl1
+libglib2.0-0
+fonts-noto
+fonts-freefont-ttf
