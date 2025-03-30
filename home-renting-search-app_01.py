@@ -5,7 +5,7 @@ import time
 import base64
 import streamlit as st
 import pandas as pd
-import numpy as np  
+import numpy as np
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -15,11 +15,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
 from bs4 import BeautifulSoup
 
-# ================== CONSTANTES ==============
+# ================== CONSTANTES ==================
 TIMEOUT = 30
 MAX_RESULTADOS = 50
 
-# ================== MEJORAS DE UI ==================
+# ================== FUNCIONES AUXILIARES ==================
 def _max_width_():
     max_width_str = "max-width: 1100px;"
     st.markdown(
@@ -33,21 +33,16 @@ def _max_width_():
         unsafe_allow_html=True,
     )
 
-_max_width_()
-
-# ================== CONFIGURACIÓN MEJORADA ==================
 def configurar_entorno():
     if platform.system() == 'Linux':
         os.environ['CHROME_BIN'] = '/usr/bin/chromium-browser'
         os.environ['CHROMEDRIVER_PATH'] = '/usr/bin/chromedriver'
         sys.path.extend(['/usr/lib/chromium-browser', '/usr/bin'])
         
-        # Configuración de display virtual
         if "DISPLAY" not in os.environ:
             os.system('Xvfb :99 -screen 0 1920x1080x24 &')
             os.environ['DISPLAY'] = ':99'
 
-# ================== SISTEMA DE DRIVER MEJORADO ==================
 @st.cache_resource
 def obtener_driver():
     try:
@@ -79,7 +74,6 @@ def obtener_driver():
         st.error(f"🚨 Error crítico: {str(e)}")
         st.stop()
 
-# ================== VISUALIZACIÓN DE RESULTADOS MEJORADA ==================
 def mostrar_resultados(df):
     st.subheader(f"📊 Resultados encontrados: {len(df)}")
     
@@ -106,7 +100,6 @@ def mostrar_resultados(df):
     href = f'<a href="data:file/csv;base64,{b64}" download="propiedades.csv">⬇️ Descargar CSV</a>'
     st.markdown(href, unsafe_allow_html=True)
 
-# ================== FUNCIONES DE SCRAPING ACTUALIZADAS =================
 def construir_url(portal, filtros):
     base_urls = {
         'Idealista': f"https://www.idealista.com/alquiler-viviendas/con-precio-hasta_{filtros['max_precio']},metros-cuadrados-mas-de_{filtros['min_metros']},de-{filtros['min_habitaciones']}-dormitorios/mapa-google",
@@ -121,7 +114,6 @@ def extraer_idealista(driver, url):
         driver.get(url)
         WebDriverWait(driver, TIMEOUT).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "article.item-info-container"))
-        )
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         resultados = []
@@ -180,11 +172,11 @@ def extraer_fotocasa(driver, url):
         st.error(f"Error en Fotocasa: {str(e)}")
         return []
 
-# ================== FUNCIÓN PRINCIPAL MEJORADA ==================
+# ================== FUNCIÓN PRINCIPAL ==================
 def main():
     # Configuración inicial DEBE SER PRIMERO
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
-    _max_width_()  # Llamada a configuración de ancho después de set_page_config
+    _max_width_()  # Configuración de estilos
     
     st.title("🏡 Buscador Inteligente de Propiedades")
     
@@ -220,11 +212,10 @@ def main():
                             resultados = extraer_idealista(driver, url)
                         elif portal == 'Fotocasa':
                             resultados = extraer_fotocasa(driver, url)
-                        # Añadir lógica para otros portales aquí
                         
                         if resultados:
                             todas_propiedades.extend(resultados)
-                            time.sleep(1.5)  # Espera anti-detection
+                            time.sleep(1.5)
                 
             if not todas_propiedades:
                 st.warning("⚠️ No se encontraron resultados")
@@ -233,7 +224,7 @@ def main():
                 mostrar_resultados(df)
                 
         except Exception as e:
-            st.error(f"Error general: {str(e)}")
+            st.error(f"🚨 Error crítico: {str(e)}")
         finally:
             if driver:
                 driver.quit()
