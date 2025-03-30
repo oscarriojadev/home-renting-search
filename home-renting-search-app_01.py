@@ -71,8 +71,7 @@ def obtener_driver():
         return driver
         
     except Exception as e:
-        st.error(f"🚨 Error crítico: {str(e)}")
-        st.stop()
+        raise RuntimeError(f"Error inicializando driver: {str(e)}") 
 
 # ================== FUNCIONES DE SCRAPING ==================
 def construir_url(portal, filtros):
@@ -181,61 +180,66 @@ def main():
     # 1. Configuración inicial DEBE SER PRIMERO
     st.set_page_config(page_title="Buscador Inmobiliario", layout="wide")
     
-    # 2. Aplicar caché al driver después de configurar la página
-    obtener_driver_cacheado = st.cache_resource(obtener_driver)
-    
-    # 3. Estilos y UI
-    _max_width_()
-    st.title("🏡 Buscador Inteligente de Propiedades")
-    
-    with st.sidebar:
-        st.header("⚙️ Filtros de Búsqueda")
-        ubicacion = st.text_input("Ubicación (ej: Madrid)", "madrid").lower()
-        max_precio = st.slider("Precio máximo (€)", 500, 3000, 1100)
-        min_habitaciones = st.slider("Mínimo habitaciones", 1, 5, 2)
-        min_metros = st.slider("Mínimo metros cuadrados", 40, 200, 60)
-        portales = st.multiselect(
-            "Portales a buscar",
-            ['Idealista', 'Fotocasa', 'Spotahome', 'Yaencontre'],
-            default=['Idealista', 'Fotocasa']
-        )
-    
-    if st.button("🔍 Buscar propiedades"):
-        driver = obtener_driver_cacheado()
-        todas_propiedades = []
+    try:
+        # 2. Aplicar caché después de configurar la página
+        obtener_driver_cacheado = st.cache_resource(obtener_driver)
         
-        try:
-            with st.spinner("🔎 Analizando portales..."):
-                filtros = {
-                    'ubicacion': ubicacion,
-                    'max_precio': max_precio,
-                    'min_habitaciones': min_habitaciones,
-                    'min_metros': min_metros
-                }
+        # 3. Estilos y UI
+        _max_width_()
+        st.title("🏡 Buscador Inteligente de Propiedades")
+        
+        with st.sidebar:
+            st.header("⚙️ Filtros de Búsqueda")
+            ubicacion = st.text_input("Ubicación (ej: Madrid)", "madrid").lower()
+            max_precio = st.slider("Precio máximo (€)", 500, 3000, 1100)
+            min_habitaciones = st.slider("Mínimo habitaciones", 1, 5, 2)
+            min_metros = st.slider("Mínimo metros cuadrados", 40, 200, 60)
+            portales = st.multiselect(
+                "Portales a buscar",
+                ['Idealista', 'Fotocasa', 'Spotahome', 'Yaencontre'],
+                default=['Idealista', 'Fotocasa']
+            )
+        
+        if st.button("🔍 Buscar propiedades"):
+            driver = obtener_driver_cacheado()
+            todas_propiedades = []
+            
+            try:
+                with st.spinner("🔎 Analizando portales..."):
+                    filtros = {
+                        'ubicacion': ubicacion,
+                        'max_precio': max_precio,
+                        'min_habitaciones': min_habitaciones,
+                        'min_metros': min_metros
+                    }
+                    
+                    for portal in portales:
+                        url = construir_url(portal, filtros)
+                        if url:
+                            if portal == 'Idealista':
+                                resultados = extraer_idealista(driver, url)
+                            elif portal == 'Fotocasa':
+                                resultados = extraer_fotocasa(driver, url)
+                            
+                            if resultados:
+                                todas_propiedades.extend(resultados)
+                                time.sleep(1.5)
                 
-                for portal in portales:
-                    url = construir_url(portal, filtros)
-                    if url:
-                        if portal == 'Idealista':
-                            resultados = extraer_idealista(driver, url)
-                        elif portal == 'Fotocasa':
-                            resultados = extraer_fotocasa(driver, url)
-                        
-                        if resultados:
-                            todas_propiedades.extend(resultados)
-                            time.sleep(1.5)
-                
-            if not todas_propiedades:
-                st.warning("⚠️ No se encontraron resultados")
-            else:
-                df = pd.DataFrame(todas_propiedades)
-                mostrar_resultados(df)
-                
-        except Exception as e:
-            st.error(f"🚨 Error crítico: {str(e)}")
-        finally:
-            if driver:
-                driver.quit()
+                if not todas_propiedades:
+                    st.warning("⚠️ No se encontraron resultados")
+                else:
+                    df = pd.DataFrame(todas_propiedades)
+                    mostrar_resultados(df)
+                    
+            except Exception as e:
+                st.error(f"🚨 Error durante el scraping: {str(e)}")
+            finally:
+                if driver:
+                    driver.quit()
+    
+    except Exception as e:
+        st.error(f"🚨 Error crítico de inicialización: {str(e)}")
+        st.stop()
 
 if __name__ == "__main__":
     main()
