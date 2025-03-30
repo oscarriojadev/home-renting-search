@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 TIMEOUT = 30
 MAX_RESULTADOS = 50
 
-# ================== FUNCIONES AUXILIARES ==================
+# ================== FUNCIONES AUXILIARES =================
 def _max_width_():
     max_width_str = "max-width: 1100px;"
     st.markdown(
